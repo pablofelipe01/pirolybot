@@ -23,7 +23,9 @@ const MultiModalInput = () => {
     setIsClient(true);
     
     const loadRecordRTC = async () => {
-      const RecordRTC = (await import('recordrtc')).default;
+      
+     const RecordRTC = (await import('recordrtc')).default;
+   
       window.RecordRTC = RecordRTC;
     };
 
@@ -34,10 +36,12 @@ const MultiModalInput = () => {
 
   const cleanup = () => {
     if (recorderRef.current) {
+      
       recorderRef.current.destroy();
       recorderRef.current = null;
     }
     if (streamRef.current) {
+
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
@@ -57,6 +61,7 @@ const MultiModalInput = () => {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+ 
       streamRef.current = stream;
 
       const RecordRTC = (await import('recordrtc')).default;
@@ -67,6 +72,7 @@ const MultiModalInput = () => {
       });
 
       recorder.startRecording();
+        //@ts-ignore
       recorderRef.current = recorder;
       setIsRecording(true);
     } catch (error) {
@@ -79,6 +85,7 @@ const MultiModalInput = () => {
     if (!recorderRef.current || !isRecording) return;
 
     recorderRef.current.stopRecording(async () => {
+
       const blob = recorderRef.current?.getBlob();
       if (blob) {
         const url = URL.createObjectURL(blob);
