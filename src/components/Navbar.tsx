@@ -2,10 +2,8 @@
 "use client";
 
 import { ConnectButton } from "thirdweb/react";
-
 import { client } from "@/app/client";
 import { polygon } from "@/app/chain";
-import Link from 'next/link';
 import { useActiveAccount } from 'thirdweb/react';
 
 export function Navbar() {
@@ -13,19 +11,13 @@ export function Navbar() {
 
   return (
     <nav className="fixed top-0 w-full bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-800 z-50">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        {/* <Link 
-          href="/" 
-          className="text-xl font-bold text-white hover:text-blue-400 transition-colors"
-        >
-          Sirius Verse
-        </Link> */}
-
-        <div className="flex items-center gap-4">
+      <div className="container mx-auto px-2 sm:px-4 h-14 sm:h-16 flex items-center justify-end">
+        <div className="flex items-center gap-2 sm:gap-4">
           {account && (
-            <div className="text-white">
-              {/* Contenido que solo se muestra cuando la wallet está conectada */}
-              <span className="mr-4">🟢 Conectado</span>
+            <div className="hidden sm:block text-white">
+              <span className="mr-2 sm:mr-4 text-sm sm:text-base">
+                🟢 Conectado
+              </span>
             </div>
           )}
           
@@ -34,17 +26,32 @@ export function Navbar() {
             chain={polygon}
             connectModal={{ 
               size: "compact",
-              title: "Conectar Wallet",
+              title: "Sirius Verse",
               welcomeScreen: {
-                title: "Bienvenido a Sirius Verse",
+                title: "Bienvenido Sirius Verse",
                 subtitle: "Conecta tu wallet para continuar"
               }
             }}
             connectButton={{ 
-              label: account ? "Wallet Conectada" : "Conectar Wallet",
-              className: account 
-                ? "bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
-                : "bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+              label: account ? 
+                "Conectado" : // Texto más corto para móviles
+                "Sirius Verse",
+              className: `
+                ${account 
+                  ? "bg-green-500 hover:bg-green-600" 
+                  : "bg-blue-500 hover:bg-blue-600"
+                } 
+                text-white 
+                px-3 sm:px-4 
+                py-1.5 sm:py-2 
+                text-sm sm:text-base 
+                rounded-lg 
+                transition-colors
+                whitespace-nowrap
+                font-medium
+                min-w-[100px] sm:min-w-[140px]
+                flex items-center justify-center
+              `
             }}
           />
         </div>
