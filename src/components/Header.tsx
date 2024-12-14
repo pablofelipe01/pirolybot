@@ -1,5 +1,6 @@
 // src/components/Header.tsx
 import Image from "next/image";
+import Link from "next/link";
 
 export function Header() {
   return (
@@ -33,6 +34,28 @@ export function Header() {
           <span className="text-zinc-300 inline-block mx-1"> + </span>
           <span className="inline-block -skew-x-6 text-blue-500"> VERSE </span>
         </h1>
+        
+        <Link 
+          href="/multimodal"
+          className="mt-8 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg 
+                   transition-all duration-300 transform hover:scale-105
+                   text-lg font-medium shadow-lg hover:shadow-xl
+                   flex items-center gap-2"
+        >
+          Explorar Multimodal
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            className="h-5 w-5" 
+            viewBox="0 0 20 20" 
+            fill="currentColor"
+          >
+            <path 
+              fillRule="evenodd" 
+              d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" 
+              clipRule="evenodd" 
+            />
+          </svg>
+        </Link>
       </header>
     </div>
   );

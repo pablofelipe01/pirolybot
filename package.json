@@ -9,15 +9,20 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "canvas-confetti": "^1.9.3",
+    "lucide-react": "^0.468.0",
     "next": "14.1.0",
     "react": "^18.3",
     "react-dom": "^18.3",
+    "recordrtc": "^5.6.2",
     "thirdweb": "^5"
   },
   "devDependencies": {
+    "@types/canvas-confetti": "^1.6.4",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/recordrtc": "^5.6.14",
     "autoprefixer": "^10.0.1",
     "eslint": "^8",
     "eslint-config-next": "14.1.0",
