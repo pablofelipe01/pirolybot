@@ -29,6 +29,9 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
 
+// Importar el nuevo componente
+import FilterLayout from './FilterLayout';
+
 interface ContentItem {
   id: string;
   Type: string;
@@ -102,6 +105,33 @@ const DateFilter = ({
         />
       </PopoverContent>
     </Popover>
+  );
+};
+
+const SentimentFilter = ({
+  sentiment,
+  onSelect,
+}: {
+  sentiment: string | null;
+  onSelect: (sentiment: string | null) => void;
+}) => {
+  const sentiments = ['positive', 'negative', 'neutral'];
+
+  return (
+    <div className="w-[200px]">
+      <select
+        value={sentiment || ''}
+        onChange={(e) => onSelect(e.target.value || null)}
+        className="w-full rounded border border-gray-300 px-3 py-2 text-gray-700 dark:text-gray-200"
+      >
+        <option value="">All Sentiments</option>
+        {sentiments.map((sentiment) => (
+          <option key={sentiment} value={sentiment}>
+            {sentiment}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 };
 
@@ -182,6 +212,7 @@ const ContentViewer = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('all');
   const [selectedDate, setSelectedDate] = useState<Date>();
+  const [selectedSentiment, setSelectedSentiment] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
@@ -264,7 +295,11 @@ const ContentViewer = () => {
       ? new Date(content.Timestamp).toDateString() === selectedDate.toDateString()
       : true;
 
-    return typeMatch && dateMatch;
+    const sentimentMatch = selectedSentiment
+      ? content.Sentiment?.toLowerCase() === selectedSentiment.toLowerCase()
+      : true;
+
+    return typeMatch && dateMatch && sentimentMatch;
   });
 
   const displayedContents =
@@ -274,24 +309,17 @@ const ContentViewer = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 space-y-4">
-      {/* Mobile Navigation and Date Filter */}
-      <div className="flex flex-col sm:flex-row justify-between gap-4">
-        <div className="flex items-center justify-between w-full sm:w-auto">
-          <MobileNav activeTab={activeTab} onSelect={setActiveTab} />
-          <DateFilter date={selectedDate} onSelect={setSelectedDate} />
-        </div>
-        {selectedDate && (
-          <Button
-            variant="ghost"
-            onClick={() => setSelectedDate(undefined)}
-            className="text-sm text-gray-400 dark:text-gray-200 w-full sm:w-auto"
-          >
-            Clear filter
-          </Button>
-        )}
-      </div>
+       {/* Reemplazar la sección de filtros anterior con el nuevo layout */}
+       <FilterLayout
+         activeTab={activeTab}
+         setActiveTab={setActiveTab}
+         selectedDate={selectedDate}
+         setSelectedDate={setSelectedDate}
+         selectedSentiment={selectedSentiment}
+         setSelectedSentiment={setSelectedSentiment}
+       />
 
-      {/* Tabs for larger screens */}
+      {/* Resto del componente sigue igual... */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="hidden md:block">
         <TabsList className="grid grid-cols-5 w-full">
           <TabsTrigger value="all">All</TabsTrigger>

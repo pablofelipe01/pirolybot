@@ -1234,7 +1234,7 @@
 
 "@radix-ui/react-select@^2.1.4":
   version "2.1.4"
-  resolved "https://registry.npmjs.org/@radix-ui/react-select/-/react-select-2.1.4.tgz"
+  resolved "https://registry.yarnpkg.com/@radix-ui/react-select/-/react-select-2.1.4.tgz#8957050203640b668a883a225260c403514b3772"
   integrity sha512-pOkb2u8KgO47j/h7AylCj7dJsm69BXcjkrvTqMptFqsE2i0p8lHkfgneXKjAgPzBMivnoMyt8o4KiV4wYzDdyQ==
   dependencies:
     "@radix-ui/number" "1.1.0"
@@ -1258,6 +1258,13 @@
     "@radix-ui/react-visually-hidden" "1.1.1"
     aria-hidden "^1.1.1"
     react-remove-scroll "^2.6.1"
+
+"@radix-ui/react-separator@^1.1.1":
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/@radix-ui/react-separator/-/react-separator-1.1.1.tgz#dd60621553c858238d876be9b0702287424866d2"
+  integrity sha512-RRiNRSrD8iUiXriq/Y5n4/3iE8HzqgLHsusUSg5jVpU2+3tqcUFPJXHDymwEypunc2sWxDUS3UC+rkZRlHedsw==
+  dependencies:
+    "@radix-ui/react-primitive" "2.0.1"
 
 "@radix-ui/react-slot@1.0.2":
   version "1.0.2"
