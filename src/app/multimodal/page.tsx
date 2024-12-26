@@ -2,8 +2,7 @@
 'use client'
 
 import MultiModalInput from '@/components/MultiModalInput';
-// import AIChatBot from '@/components/AIChatBot';
-import ChatComponent from '@/components/ChatComponent';
+
 
 export default function MultiModalPage() {
   return (
@@ -24,10 +23,7 @@ export default function MultiModalPage() {
           </div>
           
           {/* Chat Component */}
-          <div>
-            <h2 className="text-xl font-semibold mb-4">AI Assistant</h2>
-            <ChatComponent />
-          </div>
+        
         </div>
       </div>
     </main>

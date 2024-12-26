@@ -17,7 +17,7 @@ const MultiModalInput = () => {
   const streamRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const N8N_WEBHOOK_URL = "https://tok-n8n-sol.onrender.com/webhook/whatsapp-webhook";
+  const N8N_WEBHOOK_URL = "https://tok-n8n-sol.onrender.com/webhook-test/whatsapp-webhook";
 
   useEffect(() => {
     setIsClient(true);
