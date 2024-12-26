@@ -5,6 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { 
   MessageCircle, 
   FileText, 
@@ -16,7 +23,8 @@ import {
   Inbox, 
   Calendar as CalendarIcon,
   ChevronDown, 
-  ChevronUp
+  ChevronUp,
+  Menu
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
@@ -61,7 +69,6 @@ const EmptyState = ({ type, onReset }: { type: string; onReset: () => void }) =>
 
 /**
  * Componente para escoger una fecha con un popover y un calendario.
- * Se agregó la clase text-gray-700 dark:text-gray-200 para evitar texto blanco sobre fondo blanco.
  */
 const DateFilter = ({
   date,
@@ -124,6 +131,49 @@ const getSentimentColor = (sentiment: string) => {
     default:
       return 'bg-gray-500';
   }
+};
+
+const MobileNav = ({ activeTab, onSelect }: { 
+  activeTab: string; 
+  onSelect: (value: string) => void 
+}) => {
+  const items = [
+    { value: 'all', label: 'All', icon: <FileBox className="w-4 h-4" /> },
+    { value: 'text', label: 'Text', icon: <MessageCircle className="w-4 h-4" /> },
+    { value: 'image', label: 'Images', icon: <Image className="w-4 h-4" /> },
+    { value: 'audio', label: 'Audio', icon: <Headphones className="w-4 h-4" /> },
+    { value: 'document', label: 'Documents', icon: <FileText className="w-4 h-4" /> },
+  ];
+
+  return (
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant="outline" size="icon" className="md:hidden">
+          <Menu className="h-5 w-5" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left">
+        <SheetHeader>
+          <SheetTitle>Content Type</SheetTitle>
+        </SheetHeader>
+        <div className="py-4">
+          {items.map((item) => (
+            <Button
+              key={item.value}
+              variant={activeTab === item.value ? "default" : "ghost"}
+              className="w-full justify-start gap-2 mb-2"
+              onClick={() => {
+                onSelect(item.value);
+              }}
+            >
+              {item.icon}
+              {item.label}
+            </Button>
+          ))}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
 };
 
 const ContentViewer = () => {
@@ -205,11 +255,6 @@ const ContentViewer = () => {
     );
   }
 
-  /**
-   * Filtrado principal:
-   *  1) Verifica que el tipo coincida con la pestaña seleccionada (o 'all').
-   *  2) Verifica si hay fecha seleccionada (selectedDate) y la compara con la fecha del content.
-   */
   const filteredContents = contents.filter((content) => {
     const typeMatch =
       activeTab === 'all' ||
@@ -222,12 +267,6 @@ const ContentViewer = () => {
     return typeMatch && dateMatch;
   });
 
-  /**
-   * Lógica para “mostrar todo”:
-   * - Si estamos en la pestaña 'all', no hay fecha seleccionada y showAll es false,
-   *   se muestran los primeros 3 contenidos.
-   * - De lo contrario, se muestran todos los contenidos filtrados.
-   */
   const displayedContents =
     !showAll && activeTab === 'all' && !selectedDate
       ? filteredContents.slice(0, 3)
@@ -235,24 +274,25 @@ const ContentViewer = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 space-y-4">
-      {/* Filtro de fecha */}
-      <div className="flex justify-between items-center mb-4">
-        <DateFilter date={selectedDate} onSelect={setSelectedDate} />
-
-        {/* Botón para limpiar el filtro de fecha */}
+      {/* Mobile Navigation and Date Filter */}
+      <div className="flex flex-col sm:flex-row justify-between gap-4">
+        <div className="flex items-center justify-between w-full sm:w-auto">
+          <MobileNav activeTab={activeTab} onSelect={setActiveTab} />
+          <DateFilter date={selectedDate} onSelect={setSelectedDate} />
+        </div>
         {selectedDate && (
           <Button
             variant="ghost"
             onClick={() => setSelectedDate(undefined)}
-            className="text-sm text-gray-400 dark:text-gray-200"
+            className="text-sm text-gray-400 dark:text-gray-200 w-full sm:w-auto"
           >
             Clear filter
           </Button>
         )}
       </div>
 
-      {/* Tabs para filtrar por tipo de contenido */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      {/* Tabs for larger screens */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="hidden md:block">
         <TabsList className="grid grid-cols-5 w-full">
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="text">Text</TabsTrigger>
@@ -260,87 +300,85 @@ const ContentViewer = () => {
           <TabsTrigger value="audio">Audio</TabsTrigger>
           <TabsTrigger value="document">Documents</TabsTrigger>
         </TabsList>
-
-        {/* Renderizado del contenido dependiendo de la pestaña */}
-        {['all', 'text', 'image', 'audio', 'document'].map((tab) => (
-          <TabsContent key={tab} value={tab} className="mt-4">
-            {filteredContents.length === 0 ? (
-              <EmptyState type={tab} onReset={handleReset} />
-            ) : (
-              <div className="space-y-4">
-                {/* Cards de contenido */}
-                <div className="grid gap-4">
-                  {displayedContents.map((content) => (
-                    <Card key={content.id} className="overflow-hidden">
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                          <div className="flex items-center space-x-2">
-                            {getTypeIcon(content.Type)}
-                            <span>{new Date(content.Timestamp).toLocaleString()}</span>
-                          </div>
-                        </CardTitle>
-                        <Badge
-                          className={`${getSentimentColor(content.Sentiment)} text-white`}
-                        >
-                          {content.Sentiment}
-                        </Badge>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {content.Content}
-                          </p>
-                          {content.Keywords && (
-                            <div className="flex flex-wrap gap-2">
-                              {content.Keywords.split(',').map((keyword, i) => (
-                                <Badge key={i} variant="outline">
-                                  {keyword.trim()}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                            <Badge variant="secondary">{content.Language}</Badge>
-                            <Badge variant="secondary">{content.Source_Type}</Badge>
-                            {content.Topic.map((topic, i) => (
-                              <Badge key={i} variant="secondary">
-                                {topic}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                {/* Botón para “mostrar todo” o “mostrar menos” (solo en pestaña 'all' y sin fecha seleccionada) */}
-                {tab === 'all' && !selectedDate && filteredContents.length > 3 && (
-                  <div className="flex justify-center pt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAll(!showAll)}
-                      className="flex items-center space-x-2 text-gray-700 dark:text-gray-200"
-                    >
-                      {showAll ? (
-                        <>
-                          <ChevronUp className="w-4 h-4" />
-                          <span>Show less</span>
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="w-4 h-4" />
-                          <span>Show all ({filteredContents.length})</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </TabsContent>
-        ))}
       </Tabs>
+
+      {/* Content rendered conditionally */}
+      {filteredContents.length === 0 ? (
+        <EmptyState type={activeTab} onReset={handleReset} />
+      ) : (
+        <div className="space-y-4">
+          <div className="grid gap-4">
+            {displayedContents.map((content) => (
+              <Card key={content.id} className="overflow-hidden">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    <div className="flex items-center space-x-2">
+                      {getTypeIcon(content.Type)}
+                      <span className="hidden sm:inline">
+                        {new Date(content.Timestamp).toLocaleString()}
+                      </span>
+                      <span className="sm:hidden">
+                        {new Date(content.Timestamp).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </CardTitle>
+                  <Badge className={`${getSentimentColor(content.Sentiment)} text-white`}>
+                    {content.Sentiment}
+                  </Badge>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {content.Content}
+                    </p>
+                    {content.Keywords && (
+                      <div className="flex flex-wrap gap-2">
+                        {content.Keywords.split(',').map((keyword, i) => (
+                          <Badge key={i} variant="outline">
+                            {keyword.trim()}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                      <Badge variant="secondary">{content.Language}</Badge>
+                      <Badge variant="secondary">{content.Source_Type}</Badge>
+                      {content.Topic.map((topic, i) => (
+                        <Badge key={i} variant="secondary">
+                          {topic}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Show all/Show less button */}
+          {activeTab === 'all' && !selectedDate && filteredContents.length > 3 && (
+            <div className="flex justify-center pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowAll(!showAll)}
+                className="flex items-center space-x-2 text-gray-700 dark:text-gray-200"
+              >
+                {showAll ? (
+                  <>
+                    <ChevronUp className="w-4 h-4" />
+                    <span>Show less</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-4 h-4" />
+                    <span>Show all ({filteredContents.length})</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
