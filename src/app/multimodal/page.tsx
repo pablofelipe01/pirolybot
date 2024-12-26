@@ -2,6 +2,7 @@
 'use client'
 
 import MultiModalInput from '@/components/MultiModalInput';
+import ContentViewer from '@/components/ContentViewer';
 
 
 export default function MultiModalPage() {
@@ -20,6 +21,10 @@ export default function MultiModalPage() {
           <div>
             <h2 className="text-xl font-semibold mb-4">Input</h2>
             <MultiModalInput />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Output</h2>
+            <ContentViewer />
           </div>
           
           {/* Chat Component */}
