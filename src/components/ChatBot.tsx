@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import {
   Headphones,
   Info,
   Trash2,
+  Mic,
 } from "lucide-react";
 
 interface Message {
@@ -49,6 +50,7 @@ const SUGGESTED_QUERIES = [
 ];
 
 const ChatBot = ({ className }: ChatBotProps) => {
+  // -- Estados del chat
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -57,13 +59,34 @@ const ChatBot = ({ className }: ChatBotProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isTyping, setIsTyping] = useState(false);
 
-  // Scroll to bottom when messages change
+  // -- Estados de grabación de audio
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+
+  // -- Nuevo estado para indicar que se está "transcribiendo"
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  // Refs de grabación
+  const recorderRef = useRef<any>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    const loadRecordRTC = async () => {
+      const RecordRTC = (await import("recordrtc")).default;
+      (window as any).RecordRTC = RecordRTC;
+    };
+    if (typeof window !== "undefined") {
+      loadRecordRTC();
+    }
+  }, []);
+
+  // Scroll automático al final
   useEffect(() => {
     const scrollToBottom = () => {
       if (scrollAreaRef.current) {
         const scrollContainer = scrollAreaRef.current.querySelector(
           "[data-radix-scroll-area-viewport]"
-        );
+        ) as HTMLElement;
         if (scrollContainer) {
           scrollContainer.scrollTop = scrollContainer.scrollHeight;
         }
@@ -72,17 +95,133 @@ const ChatBot = ({ className }: ChatBotProps) => {
     scrollToBottom();
   }, [messages, isTyping]);
 
+  // ------------------------------------------------------------------
+  // 1. GRABACIÓN DE AUDIO
+  // ------------------------------------------------------------------
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      const RecordRTC = (window as any).RecordRTC;
+      if (!RecordRTC) {
+        alert("No se pudo cargar la librería de grabación.");
+        return;
+      }
+
+      const recorder = new RecordRTC(stream, {
+        type: "audio",
+        mimeType: "audio/webm",
+        recorderType: RecordRTC.StereoAudioRecorder,
+      });
+      recorder.startRecording();
+      recorderRef.current = recorder;
+      setIsRecording(true);
+    } catch (error) {
+      console.error("Error al iniciar la grabación:", error);
+      alert("No se pudo iniciar la grabación. ¿Permiso de micrófono denegado?");
+    }
+  };
+
+  const stopRecording = () => {
+    if (!recorderRef.current || !isRecording) return;
+
+    recorderRef.current.stopRecording(() => {
+      const blob = recorderRef.current.getBlob();
+      if (blob) {
+        setAudioBlob(blob);
+      }
+      cleanupRecording();
+    });
+  };
+
+  const cleanupRecording = () => {
+    if (recorderRef.current) {
+      recorderRef.current.destroy();
+      recorderRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setIsRecording(false);
+  };
+
+  const handleVoiceRecording = () => {
+    if (!isRecording) {
+      startRecording();
+    } else {
+      stopRecording();
+    }
+  };
+
+  // ------------------------------------------------------------------
+  // 2. ENVIAR audioBlob A /api/chat-voice PARA OBTENER LA TRANSCRIPCIÓN
+  // ------------------------------------------------------------------
+  const handleSendVoice = async () => {
+    if (!audioBlob) return;
+
+    try {
+      // Indicamos que estamos "transcribiendo"
+      setIsTranscribing(true);
+
+      const formData = new FormData();
+      formData.append("audio", audioBlob, "recording.webm");
+
+      const res = await fetch("/api/chat-voice", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        throw new Error("STT request failed");
+      }
+      const data = await res.json(); // { transcript: "..." }
+
+      const transcript = data.transcript as string;
+      if (!transcript) {
+        throw new Error("No transcript returned");
+      }
+
+      // Agregamos el texto transcrito como mensaje "user"
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        content: transcript,
+        role: "user",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+
+      // Llamar a la función normal de chat con ese texto
+      handleSendMessage(transcript);
+
+      // Limpiar
+      setAudioBlob(null);
+    } catch (error) {
+      console.error("Error enviando voz al STT:", error);
+      alert("No se pudo transcribir el audio, intenta de nuevo.");
+    } finally {
+      // Dejamos de "transcribir"
+      setIsTranscribing(false);
+    }
+  };
+
+  // ------------------------------------------------------------------
+  // 3. MANEJAR EL ENVÍO DE TEXTO A /api/chat
+  // ------------------------------------------------------------------
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: text,
-      role: "user",
-      timestamp: new Date(),
-    };
+    // Agregar mensaje de usuario (si no viene de la transcripción)
+    if (!audioBlob) {
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        content: text,
+        role: "user",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+    }
 
-    setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
     setIsTyping(true);
@@ -90,9 +229,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
           history: messages.map(({ content, role }) => ({ content, role })),
@@ -105,13 +242,13 @@ const ChatBot = ({ className }: ChatBotProps) => {
 
       const data = await response.json();
 
+      // Mensaje de asistente
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: data.response,
         role: "assistant",
         timestamp: new Date(),
       };
-
       setMessages((prev) => [...prev, assistantMessage]);
 
       if (data.data) {
@@ -121,18 +258,19 @@ const ChatBot = ({ className }: ChatBotProps) => {
       console.error("Error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Error desconocido";
+
       let userFriendlyMessage =
         "Lo siento, hubo un error procesando tu mensaje: ";
 
       if (errorMessage.includes("model_not_found")) {
         userFriendlyMessage +=
-          "Hay un problema con el modelo de AI. Por favor, contacta al administrador.";
+          "Hay un problema con el modelo de AI. Contacta al administrador.";
       } else if (errorMessage.includes("rate_limit")) {
         userFriendlyMessage +=
-          "Estamos procesando demasiadas peticiones. Por favor, espera un momento y vuelve a intentar.";
+          "Hay demasiadas peticiones. Espera un momento e inténtalo de nuevo.";
       } else if (errorMessage.includes("invalid_request_error")) {
         userFriendlyMessage +=
-          "La solicitud no es válida. Por favor, intenta reformular tu pregunta.";
+          "La solicitud no es válida. Intenta reformular tu pregunta.";
       } else {
         userFriendlyMessage += "Por favor, intenta de nuevo en unos momentos.";
       }
@@ -162,11 +300,13 @@ const ChatBot = ({ className }: ChatBotProps) => {
 
   const clearChat = () => {
     setMessages([]);
+    setAudioBlob(null);
     if (inputRef.current) {
       inputRef.current.focus();
     }
   };
 
+  // Iconos
   const getTypeIcon = (type: string) => {
     switch (type.toLowerCase()) {
       case "image":
@@ -189,7 +329,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
           isUser ? "justify-end" : "justify-start"
         } group`}
       >
-        {/* Avatar con la imagen de capybara para el bot */}
+        {/* Bot */}
         {!isUser && (
           <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback>AI</AvatarFallback>
@@ -210,7 +350,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
           </span>
         </div>
 
-        {/* Avatar del usuario */}
+        {/* Usuario */}
         {isUser && (
           <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback>US</AvatarFallback>
@@ -224,18 +364,15 @@ const ChatBot = ({ className }: ChatBotProps) => {
   return (
     <Card className={`w-full flex flex-col ${className}`}>
       <CardContent className="flex-1 flex flex-col p-4 h-full overflow-hidden">
-        {/* Header con la imagen de capybara en pequeño */}
+        {/* Header */}
         <div className="flex items-center justify-between shrink-0 mb-2">
           <div className="flex items-center gap-2">
-            {/* Cambiamos el texto y la imagen para “Capi”, asistente de SIRIUS Verse */}
             <img
               src="/capi.jpeg"
               alt="Capi Icon"
               className="w-5 h-5 rounded-full"
             />
-            <h3 className="font-medium">
-              Capi: Asistente del SIRIUS Verse
-            </h3>
+            <h3 className="font-medium">Capi: Asistente del SIRIUS Verse</h3>
             {messages.length > 0 && (
               <Button
                 variant="ghost"
@@ -248,7 +385,6 @@ const ChatBot = ({ className }: ChatBotProps) => {
             )}
           </div>
 
-          {/* Info de la base de datos (si la hay) */}
           {dbStats && (
             <TooltipProvider>
               <Tooltip>
@@ -291,11 +427,10 @@ const ChatBot = ({ className }: ChatBotProps) => {
           )}
         </div>
 
-        {/* Área de mensajes con scroll */}
+        {/* Mensajes (Scroll) */}
         <div className="flex-1 min-h-0">
           <ScrollArea className="h-full" ref={scrollAreaRef}>
             <div className="space-y-4 pb-4 pr-4">
-              {/* Estado vacío con la imagen grande de capybara y texto actualizado */}
               {messages.length === 0 ? (
                 <div className="text-center space-y-4 py-8 px-2">
                   <img
@@ -304,15 +439,12 @@ const ChatBot = ({ className }: ChatBotProps) => {
                     className="w-12 h-12 mx-auto rounded-full"
                   />
                   <div className="space-y-2">
-                    <h4 className="font-medium">
-                      ¡Hola! Me llamo Capi.
-                    </h4>
+                    <h4 className="font-medium">¡Hola! Me llamo Capi.</h4>
                     <p className="text-sm text-muted-foreground">
                       Soy tu asistente en el SIRIUS Verse. ¡Pregúntame lo que
                       necesites y con gusto te ayudaré!
                     </p>
                   </div>
-                  {/* Botones de sugerencia */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
                     {SUGGESTED_QUERIES.map((query, index) => (
                       <Button
@@ -328,8 +460,8 @@ const ChatBot = ({ className }: ChatBotProps) => {
                 </div>
               ) : (
                 <>
-                  {messages.map((message) => (
-                    <MessageBubble key={message.id} message={message} />
+                  {messages.map((msg) => (
+                    <MessageBubble key={msg.id} message={msg} />
                   ))}
                   {isTyping && (
                     <div className="flex items-center gap-2 text-muted-foreground animate-pulse">
@@ -347,7 +479,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
           </ScrollArea>
         </div>
 
-        {/* Footer con input y badges */}
+        {/* Footer */}
         <div className="mt-4 shrink-0">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input
@@ -358,7 +490,19 @@ const ChatBot = ({ className }: ChatBotProps) => {
               disabled={isLoading}
               ref={inputRef}
             />
-            <Button type="submit" disabled={isLoading || !input.trim()}>
+
+            {/* Botón micrófono */}
+            <Button
+              type="button"
+              onClick={handleVoiceRecording}
+              variant={isRecording ? "destructive" : "default"}
+              disabled={isLoading}
+            >
+              <Mic className="h-4 w-4" />
+            </Button>
+
+            {/* Botón enviar texto */}
+            <Button type="submit" disabled={isLoading}>
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
@@ -367,6 +511,30 @@ const ChatBot = ({ className }: ChatBotProps) => {
             </Button>
           </form>
 
+          {/* Si hay audioBlob, mostrar el reproductor y botón para enviar voz */}
+          {audioBlob && (
+            <div className="mt-2 border border-dashed p-2 rounded-md text-xs">
+              <p className="text-muted-foreground mb-1">Audio grabado:</p>
+              <audio
+                controls
+                src={URL.createObjectURL(audioBlob)}
+                className="w-full mb-1"
+              />
+              {/* Aquí mostramos un botón o spinner si estamos transcribiendo */}
+              {isTranscribing ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Transcribiendo audio...</span>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" onClick={handleSendVoice}>
+                  Enviar voz
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Badges */}
           <div className="flex flex-wrap gap-2 mt-2 px-1">
             <TooltipProvider>
               <Tooltip>
