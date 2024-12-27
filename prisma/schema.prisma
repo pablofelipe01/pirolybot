@@ -1,0 +1,14 @@
+datasource db {
+  provider = "postgresql" // o sqlite, mysql, etc.
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Transcription {
+  id     String  @id
+  status String
+  text   String?
+}
