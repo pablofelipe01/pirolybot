@@ -99,31 +99,49 @@ function prepareSystemPrompt(data: AirtableRecord[], userQuery: string) {
   console.log(`Found ${relevantRecords.length} relevant records for query: ${userQuery}`);
 
   // Generar resumen detallado por tipo
-  const summaryByType = Object.entries(groupBy(sortedData, 'Type')).map(([type, items]) => {
-    const latestItems = items.slice(0, 3).map(item => {
-      const metadata = item.Metadata ? parseMetadata(item.Metadata) : {};
-      return {
-        timestamp: new Date(item.Timestamp).toLocaleString(),
-        content: item.Content,
-        metadata: metadata,
-        sentiment: item.Sentiment,
-        keywords: item.Keywords,
-      };
-    });
+  const summaryByType = Object.entries(groupBy(sortedData, 'Type'))
+    .map(([type, items]) => {
+      const latestItems = items.slice(0, 3).map(item => {
+        const metadata = item.Metadata ? parseMetadata(item.Metadata) : {};
+        return {
+          timestamp: new Date(item.Timestamp).toLocaleString(),
+          content: item.Content,
+          metadata: metadata,
+          sentiment: item.Sentiment,
+          keywords: item.Keywords,
+        };
+      });
 
-    return `${type.toUpperCase()} (${items.length} total):
-${latestItems.map((item, i) => `${i + 1}. [${item.timestamp}] ${item.content.substring(0, 100)}${item.content.length > 100 ? '...' : ''}`).join('\n')}`;
-  }).join('\n\n');
+      return `${type.toUpperCase()} (${items.length} total):
+${latestItems
+  .map(
+    (item, i) =>
+      `${i + 1}. [${item.timestamp}] ${item.content.substring(0, 100)}${
+        item.content.length > 100 ? '...' : ''
+      }`
+  )
+  .join('\n')}`;
+    })
+    .join('\n\n');
 
   const prompt = `Eres un asistente especializado en analizar y responder preguntas sobre una base de datos multimedia.
 
 Base de datos actual:
 ${summaryByType}
 
-${relevantRecords.length > 0 ? `
+${
+  relevantRecords.length > 0
+    ? `
 Registros relevantes para tu consulta "${userQuery}":
-${relevantRecords.map((record, i) => `${i + 1}. [${record.Type}] ${record.Content}`).join('\n')}
-` : ''}
+${relevantRecords
+  .map(
+    (record, i) =>
+      `${i + 1}. [${record.Type}] ${record.Content}`
+  )
+  .join('\n')}
+`
+    : ''
+}
 
 Instrucciones:
 1. Usa la información de los registros relevantes para responder la pregunta
@@ -155,7 +173,8 @@ export async function POST(req: Request) {
 
     const completion = await openai.chat.completions.create({
       messages: messages as any,
-      model: 'gpt-4-1106-preview',
+      // Aquí cambiamos a gpt-3.5-turbo
+      model: 'gpt-3.5-turbo',
       temperature: 0.7,
       max_tokens: 1000,
     });
@@ -169,8 +188,10 @@ export async function POST(req: Request) {
         total_records: airtableData.length,
         types: Object.keys(groupBy(airtableData, 'Type')),
         related_records: relatedRecords.length,
-        latest_update: new Date(Math.max(...airtableData.map(r => new Date(r.Timestamp).getTime()))).toISOString()
-      }
+        latest_update: new Date(
+          Math.max(...airtableData.map(r => new Date(r.Timestamp).getTime()))
+        ).toISOString(),
+      },
     });
   } catch (error) {
     console.error('Error in chat endpoint:', error);
