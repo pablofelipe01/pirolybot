@@ -3,6 +3,7 @@
 
 import MultiModalInput from '@/components/MultiModalInput';
 import ContentViewer from '@/components/ContentViewer';
+// import ChatBot from '@/components/ChatBot';
 
 
 export default function MultiModalPage() {
@@ -28,6 +29,10 @@ export default function MultiModalPage() {
           </div>
           
           {/* Chat Component */}
+          {/* <div>
+            <h2 className="text-xl font-semibold mb-4">Output</h2>
+            <ChatBot />
+          </div> */}
         
         </div>
       </div>
