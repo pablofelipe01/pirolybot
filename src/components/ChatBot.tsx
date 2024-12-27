@@ -23,6 +23,7 @@ import {
   Mic,
 } from "lucide-react";
 
+// Tipos
 interface Message {
   id: string;
   content: string;
@@ -50,26 +51,27 @@ const SUGGESTED_QUERIES = [
 ];
 
 const ChatBot = ({ className }: ChatBotProps) => {
-  // -- Estados del chat
+  // Estados del chat
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // Para /api/chat
   const [dbStats, setDbStats] = useState<DbStats | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isTyping, setIsTyping] = useState(false);
+  const [isTyping, setIsTyping] = useState(false); // Para mostrar "Escribiendo..."
 
-  // -- Estados de grabación de audio
+  // Estados de grabación
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
 
-  // -- Nuevo estado para indicar que se está "transcribiendo"
+  // Estado de transcripción
   const [isTranscribing, setIsTranscribing] = useState(false);
 
-  // Refs de grabación
+  // References para grabación (RecordRTC)
   const recorderRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // Cargar la librería de grabación
   useEffect(() => {
     const loadRecordRTC = async () => {
       const RecordRTC = (await import("recordrtc")).default;
@@ -80,7 +82,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
     }
   }, []);
 
-  // Scroll automático al final
+  // Scroll automático
   useEffect(() => {
     const scrollToBottom = () => {
       if (scrollAreaRef.current) {
@@ -95,9 +97,9 @@ const ChatBot = ({ className }: ChatBotProps) => {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  // ------------------------------------------------------------------
-  // 1. GRABACIÓN DE AUDIO
-  // ------------------------------------------------------------------
+  // ------------------------------------------------------------------------------
+  // 1. Grabación de Audio
+  // ------------------------------------------------------------------------------
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -119,7 +121,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
       setIsRecording(true);
     } catch (error) {
       console.error("Error al iniciar la grabación:", error);
-      alert("No se pudo iniciar la grabación. ¿Permiso de micrófono denegado?");
+      alert("No se pudo iniciar la grabación. Permiso de micrófono denegado?");
     }
   };
 
@@ -155,72 +157,105 @@ const ChatBot = ({ className }: ChatBotProps) => {
     }
   };
 
-  // ------------------------------------------------------------------
-  // 2. ENVIAR audioBlob A /api/chat-voice PARA OBTENER LA TRANSCRIPCIÓN
-  // ------------------------------------------------------------------
+  // ------------------------------------------------------------------------------
+  // 2. Enviar audio a /api/chat-voice-init para iniciar transcripción
+  // ------------------------------------------------------------------------------
   const handleSendVoice = async () => {
     if (!audioBlob) return;
 
     try {
-      // Indicamos que estamos "transcribiendo"
       setIsTranscribing(true);
 
       const formData = new FormData();
       formData.append("audio", audioBlob, "recording.webm");
 
-      const res = await fetch("/api/chat-voice", {
+      // Llamamos a /api/chat-voice-init
+      const res = await fetch("/api/chat-voice-init", {
         method: "POST",
         body: formData,
       });
       if (!res.ok) {
-        throw new Error("STT request failed");
-      }
-      const data = await res.json(); // { transcript: "..." }
-
-      const transcript = data.transcript as string;
-      if (!transcript) {
-        throw new Error("No transcript returned");
+        throw new Error("No se pudo iniciar la transcripción");
       }
 
-      // Agregamos el texto transcrito como mensaje "user"
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        content: transcript,
-        role: "user",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, userMessage]);
+      const data = await res.json();
+      const transcriptId = data.transcriptId;
+      console.log("Se inició la transcripción con ID:", transcriptId);
 
-      // Llamar a la función normal de chat con ese texto
-      handleSendMessage(transcript);
-
-      // Limpiar
+      // Iniciamos el polling para ver si ya está lista
+      pollTranscriptionStatus(transcriptId);
       setAudioBlob(null);
     } catch (error) {
-      console.error("Error enviando voz al STT:", error);
+      console.error("Error al enviar el audio a /api/chat-voice-init:", error);
       alert("No se pudo transcribir el audio, intenta de nuevo.");
     } finally {
-      // Dejamos de "transcribir"
       setIsTranscribing(false);
     }
   };
 
-  // ------------------------------------------------------------------
-  // 3. MANEJAR EL ENVÍO DE TEXTO A /api/chat
-  // ------------------------------------------------------------------
+  // ------------------------------------------------------------------------------
+  // 3. Polling a /api/transcriptions/[id] hasta status="completed"
+  // ------------------------------------------------------------------------------
+  const pollTranscriptionStatus = (transcriptId: string) => {
+    let attempts = 0;
+    const maxAttempts = 40; // ~2 minutos si cada poll es 3s
+
+    const intervalId = setInterval(async () => {
+      attempts++;
+      if (attempts > maxAttempts) {
+        clearInterval(intervalId);
+        alert("Se tardó demasiado en transcribir.");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/transcriptions/${transcriptId}`);
+        if (res.ok) {
+          const { status, text } = await res.json();
+          // status puede ser "completed", "processing", "error", etc.
+          if (status === "completed") {
+            clearInterval(intervalId);
+
+            // text contiene la transcripción final
+            console.log("Transcripción completada:", text);
+
+            // 1) Añadir un mensaje "user" al chat con ese texto
+            const userMessage: Message = {
+              id: Date.now().toString(),
+              content: text,
+              role: "user",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, userMessage]);
+
+            // 2) (Opcional) Llamar al /api/chat con ese texto para obtener respuesta
+            handleSendMessage(text);
+          } else if (status === "error") {
+            clearInterval(intervalId);
+            alert("Hubo un error en la transcripción");
+          }
+        }
+      } catch (error) {
+        console.error("Error consultando /api/transcriptions/[id]", error);
+        // Podrías ignorar, reintentar, etc.
+      }
+    }, 3000); // cada 3s
+  };
+
+  // ------------------------------------------------------------------------------
+  // 4. Enviar texto normal a /api/chat
+  // ------------------------------------------------------------------------------
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
-    // Agregar mensaje de usuario (si no viene de la transcripción)
-    if (!audioBlob) {
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        content: text,
-        role: "user",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, userMessage]);
-    }
+    // Crear mensaje "user"
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      content: text,
+      role: "user",
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMessage]);
 
     setInput("");
     setIsLoading(true);
@@ -237,12 +272,12 @@ const ChatBot = ({ className }: ChatBotProps) => {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to get response");
+        throw new Error("Falla en la respuesta del chat");
       }
 
       const data = await response.json();
 
-      // Mensaje de asistente
+      // Crear mensaje "assistant"
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: data.response,
@@ -251,30 +286,13 @@ const ChatBot = ({ className }: ChatBotProps) => {
       };
       setMessages((prev) => [...prev, assistantMessage]);
 
+      // Si el endpoint chat retorna stats
       if (data.data) {
         setDbStats(data.data);
       }
     } catch (error) {
-      console.error("Error:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Error desconocido";
-
-      let userFriendlyMessage =
-        "Lo siento, hubo un error procesando tu mensaje: ";
-
-      if (errorMessage.includes("model_not_found")) {
-        userFriendlyMessage +=
-          "Hay un problema con el modelo de AI. Contacta al administrador.";
-      } else if (errorMessage.includes("rate_limit")) {
-        userFriendlyMessage +=
-          "Hay demasiadas peticiones. Espera un momento e inténtalo de nuevo.";
-      } else if (errorMessage.includes("invalid_request_error")) {
-        userFriendlyMessage +=
-          "La solicitud no es válida. Intenta reformular tu pregunta.";
-      } else {
-        userFriendlyMessage += "Por favor, intenta de nuevo en unos momentos.";
-      }
-
+      console.error("Error en handleSendMessage:", error);
+      const userFriendlyMessage = "Lo siento, ocurrió un error con el Chat.";
       setMessages((prev) => [
         ...prev,
         {
@@ -298,6 +316,9 @@ const ChatBot = ({ className }: ChatBotProps) => {
     handleSendMessage(input);
   };
 
+  // ------------------------------------------------------------------------------
+  // 5. Limpiar chat
+  // ------------------------------------------------------------------------------
   const clearChat = () => {
     setMessages([]);
     setAudioBlob(null);
@@ -306,7 +327,9 @@ const ChatBot = ({ className }: ChatBotProps) => {
     }
   };
 
-  // Iconos
+  // ------------------------------------------------------------------------------
+  // Render UI
+  // ------------------------------------------------------------------------------
   const getTypeIcon = (type: string) => {
     switch (type.toLowerCase()) {
       case "image":
@@ -322,14 +345,9 @@ const ChatBot = ({ className }: ChatBotProps) => {
 
   const MessageBubble = ({ message }: { message: Message }) => {
     const isUser = message.role === "user";
-
     return (
-      <div
-        className={`flex gap-3 ${
-          isUser ? "justify-end" : "justify-start"
-        } group`}
-      >
-        {/* Bot */}
+      <div className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
+        {/* Bot avatar */}
         {!isUser && (
           <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback>AI</AvatarFallback>
@@ -350,7 +368,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
           </span>
         </div>
 
-        {/* Usuario */}
+        {/* User avatar */}
         {isUser && (
           <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback>US</AvatarFallback>
@@ -385,6 +403,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
             )}
           </div>
 
+          {/* DB Stats (si existen) */}
           {dbStats && (
             <TooltipProvider>
               <Tooltip>
@@ -427,7 +446,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
           )}
         </div>
 
-        {/* Mensajes (Scroll) */}
+        {/* Área de mensajes con scroll */}
         <div className="flex-1 min-h-0">
           <ScrollArea className="h-full" ref={scrollAreaRef}>
             <div className="space-y-4 pb-4 pr-4">
@@ -479,7 +498,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
           </ScrollArea>
         </div>
 
-        {/* Footer */}
+        {/* Footer con input y control de audio */}
         <div className="mt-4 shrink-0">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input
@@ -491,7 +510,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
               ref={inputRef}
             />
 
-            {/* Botón micrófono */}
+            {/* Botón de micrófono */}
             <Button
               type="button"
               onClick={handleVoiceRecording}
@@ -511,7 +530,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
             </Button>
           </form>
 
-          {/* Si hay audioBlob, mostrar el reproductor y botón para enviar voz */}
+          {/* Si hay audio grabado, lo mostramos y dejamos enviar */}
           {audioBlob && (
             <div className="mt-2 border border-dashed p-2 rounded-md text-xs">
               <p className="text-muted-foreground mb-1">Audio grabado:</p>
@@ -520,7 +539,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
                 src={URL.createObjectURL(audioBlob)}
                 className="w-full mb-1"
               />
-              {/* Aquí mostramos un botón o spinner si estamos transcribiendo */}
+
               {isTranscribing ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -534,7 +553,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
             </div>
           )}
 
-          {/* Badges */}
+          {/* Badges de ejemplo */}
           <div className="flex flex-wrap gap-2 mt-2 px-1">
             <TooltipProvider>
               <Tooltip>
