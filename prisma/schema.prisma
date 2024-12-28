@@ -1,0 +1,19 @@
+// This is your Prisma schema file
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Transcription {
+  id         String   @id @default(cuid())
+  status     String   // 'pending', 'processing', 'completed', 'error'
+  transcript String?  @db.Text
+  error      String?  @db.Text
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}

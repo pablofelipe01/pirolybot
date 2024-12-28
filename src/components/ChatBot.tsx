@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   MessageCircle,
-  SendHorizonal,
+  SendHorizontal, // Asegúrate de que el nombre del icono sea correcto
   Loader2,
   Image as ImageIcon,
   FileText,
@@ -63,8 +63,9 @@ const ChatBot = ({ className }: ChatBotProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
 
-  // -- Nuevo estado para indicar que se está "transcribiendo"
+  // -- Nuevo estado para indicar que se está "transcribiendo" y manejar errores
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
 
   // Refs de grabación
   const recorderRef = useRef<any>(null);
@@ -162,9 +163,10 @@ const ChatBot = ({ className }: ChatBotProps) => {
     if (!audioBlob) return;
 
     try {
-      // Indicamos que estamos "transcribiendo"
       setIsTranscribing(true);
+      setTranscriptionError(null);
 
+      // 1. Enviar audio
       const formData = new FormData();
       formData.append("audio", audioBlob, "recording.webm");
 
@@ -172,35 +174,69 @@ const ChatBot = ({ className }: ChatBotProps) => {
         method: "POST",
         body: formData,
       });
+
       if (!res.ok) {
-        throw new Error("STT request failed");
-      }
-      const data = await res.json(); // { transcript: "..." }
-
-      const transcript = data.transcript as string;
-      if (!transcript) {
-        throw new Error("No transcript returned");
+        throw new Error("Failed to upload audio");
       }
 
-      // Agregamos el texto transcrito como mensaje "user"
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        content: transcript,
-        role: "user",
-        timestamp: new Date(),
+      const { transcriptionId, status } = await res.json();
+
+      // 2. Polling del estado
+      const checkStatus = async () => {
+        try {
+          const statusRes = await fetch(`/api/transcript-status/${transcriptionId}`);
+          if (!statusRes.ok) {
+            throw new Error("Failed to check status");
+          }
+
+          const statusData = await statusRes.json();
+
+          switch (statusData.status) {
+            case "completed":
+              // Agregar mensaje y procesar con el chatbot
+              const transcript = statusData.transcript;
+              const userMessage: Message = {
+                id: Date.now().toString(),
+                content: transcript,
+                role: "user",
+                timestamp: new Date(),
+              };
+              setMessages((prev) => [...prev, userMessage]);
+              handleSendMessage(transcript);
+              setAudioBlob(null);
+              setIsTranscribing(false);
+              break;
+
+            case "error":
+              setTranscriptionError(statusData.error || "Error en la transcripción");
+              setIsTranscribing(false);
+              break;
+
+            case "processing":
+            case "pending":
+              // Continuar polling después de 3 segundos
+              setTimeout(checkStatus, 3000);
+              break;
+
+            default:
+              throw new Error(`Estado desconocido: ${statusData.status}`);
+          }
+        } catch (error) {
+          console.error("Error checking transcription status:", error);
+          setTranscriptionError(
+            error instanceof Error ? error.message : "Error desconocido"
+          );
+          setIsTranscribing(false);
+        }
       };
-      setMessages((prev) => [...prev, userMessage]);
 
-      // Llamar a la función normal de chat con ese texto
-      handleSendMessage(transcript);
-
-      // Limpiar
-      setAudioBlob(null);
+      // Iniciar polling
+      checkStatus();
     } catch (error) {
-      console.error("Error enviando voz al STT:", error);
-      alert("No se pudo transcribir el audio, intenta de nuevo.");
-    } finally {
-      // Dejamos de "transcribir"
+      console.error("Error processing voice:", error);
+      setTranscriptionError(
+        error instanceof Error ? error.message : "Error desconocido"
+      );
       setIsTranscribing(false);
     }
   };
@@ -301,6 +337,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
   const clearChat = () => {
     setMessages([]);
     setAudioBlob(null);
+    setTranscriptionError(null);
     if (inputRef.current) {
       inputRef.current.focus();
     }
@@ -506,7 +543,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <SendHorizonal className="h-4 w-4" />
+                <SendHorizontal className="h-4 w-4" /> // Asegúrate de que el icono se llame correctamente
               )}
             </Button>
           </form>
@@ -520,12 +557,14 @@ const ChatBot = ({ className }: ChatBotProps) => {
                 src={URL.createObjectURL(audioBlob)}
                 className="w-full mb-1"
               />
-              {/* Aquí mostramos un botón o spinner si estamos transcribiendo */}
+              {/* Mostrar spinner, error o botón para enviar */}
               {isTranscribing ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Transcribiendo audio...</span>
                 </div>
+              ) : transcriptionError ? (
+                <div className="text-destructive text-sm">{transcriptionError}</div>
               ) : (
                 <Button variant="outline" size="sm" onClick={handleSendVoice}>
                   Enviar voz
