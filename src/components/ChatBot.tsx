@@ -41,14 +41,71 @@ interface DbStats {
   latest_update?: string;
 }
 
-const SUGGESTED_QUERIES = [
-  "¿Cuál es la última imagen en la base de datos?",
-  "¿Hay alguna imagen similar a la última subida?",
-  "¿Cuál es el sentimiento general de los últimos textos?",
-  "Resume los últimos 3 documentos",
-  "¿Hay audios en español?",
-];
+const SUGGESTED_QUERIES = {
+  // Consultas específicas de la bitácora (tabla de eventos)
+  BITACORA: [
+    "¿Ha habido problemas con el dragoneo en los últimos turnos?",
+    "Muestra un resumen de los eventos importantes en la planta hoy",
+    "¿Qué observaciones hay sobre el control de temperatura?",
+    "¿Ha habido paradas de alimentación? ¿Por qué motivos?",
+    "¿Ha habido problemas con el ventilador centrífugo?",
+    "Muestra el historial de problemas con la esclusa"
+  ],
 
+  // Consultas específicas de biomasa (datos técnicos)
+  BIOMASA: [
+    "¿Cuál es el promedio de biomasa húmeda por hora en el último turno?",
+    "¿Cuál es el porcentaje de humedad promedio en las últimas 24 horas?",
+    "¿Cómo ha variado el target de la tolva 2 durante los últimos turnos?",
+    "¿Cuál es el consumo de gas inicial más reciente?",
+    "Muestra un análisis de los turnos donde el porcentaje de humedad superó el 90%"
+  ],
+
+  // Consultas que combinan información de ambas tablas
+  COMBINADAS: [
+    "¿Qué problemas operativos han afectado la alimentación de biomasa?",
+    "Analiza la relación entre problemas reportados y variaciones en la humedad",
+    "¿Cómo han impactado las paradas por dragoneo en el rendimiento de biomasa?",
+    "Compara el rendimiento de los operadores considerando eventos y mediciones",
+    "¿Qué eventos han causado las mayores variaciones en el consumo de gas?"
+  ],
+
+  // Consultas de rendimiento y operadores
+  OPERADORES: [
+    "¿Quiénes son los operadores activos y sus últimos turnos?",
+    "¿Cuál es el promedio de horas trabajadas por operador?",
+    "¿Qué operador ha mantenido el mejor ratio de alimentación biomasa?",
+    "Resume los eventos importantes durante el último turno por operador",
+    "Compara las observaciones y mediciones del turno actual"
+  ]
+};
+
+// Función para obtener consultas aleatorias sugeridas
+function getRandomSuggestions(queriesPerCategory = 2) {
+  const allCategories = ['BITACORA', 'BIOMASA', 'COMBINADAS', 'OPERADORES'];
+  const suggestions: Array<{category: string; query: string}> = [];
+  
+  // Obtenemos exactamente dos consultas aleatorias de cada categoría
+  allCategories.forEach(category => {
+    // Obtenemos las consultas de la categoría actual
+    const categoryQueries = [...SUGGESTED_QUERIES[category]];
+    
+    // Seleccionamos 2 consultas aleatorias de esta categoría
+    for (let i = 0; i < queriesPerCategory && categoryQueries.length > 0; i++) {
+      const randomIndex = Math.floor(Math.random() * categoryQueries.length);
+      const selectedQuery = categoryQueries.splice(randomIndex, 1)[0];
+      suggestions.push({
+        category,
+        query: selectedQuery
+      });
+    }
+  });
+
+  return suggestions;
+}
+
+// Para usar en el componente ChatBot
+// const DISPLAYED_QUERIES = getRandomSuggestions(5);
 const ChatBot = ({ className }: ChatBotProps) => {
   // -- Estados del chat
   const [messages, setMessages] = useState<Message[]>([]);
@@ -58,6 +115,8 @@ const ChatBot = ({ className }: ChatBotProps) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [displayedQueries, setDisplayedQueries] = useState<Array<{category: string; query: string}>>([]);
+
 
   // -- Estados de grabación de audio
   const [isRecording, setIsRecording] = useState(false);
@@ -95,6 +154,13 @@ const ChatBot = ({ className }: ChatBotProps) => {
     };
     scrollToBottom();
   }, [messages, isTyping]);
+
+  // Añade esto después de tus otros useEffect
+useEffect(() => {
+  // Obtenemos las consultas aleatorias solo cuando el componente se monta en el cliente
+  const queries = getRandomSuggestions(2);
+  setDisplayedQueries(queries);
+}, []); // El array vacío significa que esto solo se ejecuta una vez
 
   // ------------------------------------------------------------------
   // 1. GRABACIÓN DE AUDIO
@@ -329,6 +395,11 @@ const ChatBot = ({ className }: ChatBotProps) => {
     }
   };
 
+  const handleRefreshQueries = () => {
+    const newQueries = getRandomSuggestions(2);
+    setDisplayedQueries(newQueries);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     handleSendMessage(input);
@@ -409,7 +480,7 @@ const ChatBot = ({ className }: ChatBotProps) => {
               alt="Capi Icon"
               className="w-5 h-5 rounded-full"
             />
-            <h3 className="font-medium">Capi: Asistente del SIRIUS Verse</h3>
+            <h3 className="font-medium">Capi: Asistente del SIRIUS Piroli App</h3>
             {messages.length > 0 && (
               <Button
                 variant="ghost"
@@ -469,32 +540,50 @@ const ChatBot = ({ className }: ChatBotProps) => {
           <ScrollArea className="h-full" ref={scrollAreaRef}>
             <div className="space-y-4 pb-4 pr-4">
               {messages.length === 0 ? (
+                ///
                 <div className="text-center space-y-4 py-8 px-2">
-                  <img
-                    src="/capi.jpeg"
-                    alt="Capi Icon"
-                    className="w-12 h-12 mx-auto rounded-full"
-                  />
-                  <div className="space-y-2">
-                    <h4 className="font-medium">¡Hola! Me llamo Capi.</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Soy tu asistente en el SIRIUS Verse. ¡Pregúntame lo que
-                      necesites y con gusto te ayudaré!
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
-                    {SUGGESTED_QUERIES.map((query, index) => (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        className="justify-start text-sm whitespace-normal break-words"
-                        onClick={() => handleSendMessage(query)}
-                      >
-                        {query}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
+  <img
+    src="/capi.jpeg"
+    alt="Capi Icon"
+    className="w-12 h-12 mx-auto rounded-full"
+  />
+  <div className="space-y-2">
+    <h4 className="font-medium">¡Hola! Me llamo Capi.</h4>
+    <p className="text-sm text-muted-foreground">
+      Soy tu asistente en el SIRIUS Verse. ¡Pregúntame lo que
+      necesites y con gusto te ayudaré!
+    </p>
+  </div>
+  <div className="space-y-4">
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3">
+  {displayedQueries.map(({category, query}, index) => (
+    <Button
+      key={index}
+      variant="outline"
+      className="justify-start text-sm whitespace-normal break-words h-auto py-3 px-4"
+      onClick={() => handleSendMessage(query)}
+    >
+      <div className="flex flex-col items-start gap-1 text-left">
+        <span className="text-xs text-muted-foreground font-medium">
+          {category}
+        </span>
+        {query}
+      </div>
+    </Button>
+  ))}
+</div>
+    
+    <Button 
+      variant="ghost" 
+      onClick={handleRefreshQueries}
+      className="w-full mt-2 text-muted-foreground hover:text-foreground transition-colors"
+    >
+      <MessageCircle className="w-4 h-4 mr-2" />
+      Mostrar otras sugerencias
+    </Button>
+  </div>
+</div>
+                
               ) : (
                 <>
                   {messages.map((msg) => (
