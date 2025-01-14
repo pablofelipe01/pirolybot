@@ -480,7 +480,7 @@ useEffect(() => {
               alt="Capi Icon"
               className="w-5 h-5 rounded-full"
             />
-            <h3 className="font-medium">Capi: Asistente del SIRIUS Piroli App</h3>
+            <h3 className="font-medium">Capi</h3>
             {messages.length > 0 && (
               <Button
                 variant="ghost"
