@@ -58,3 +58,4 @@ yarn start
 
 For help or feedback, please [visit our support site](https://thirdweb.com/support)
 # sirius-verse
+# pirolybot
