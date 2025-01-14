@@ -550,7 +550,7 @@ useEffect(() => {
   <div className="space-y-2">
     <h4 className="font-medium">¡Hola! Me llamo Capi.</h4>
     <p className="text-sm text-muted-foreground">
-      Soy tu asistente en el SIRIUS Verse. ¡Pregúntame lo que
+      Soy tu asistente en el SIRIUS Piroli App. ¡Pregúntame lo que
       necesites y con gusto te ayudaré!
     </p>
   </div>

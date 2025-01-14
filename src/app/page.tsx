@@ -9,7 +9,7 @@ export default function Home() {
 
   return (
     <main>
-      {account && <Header />}
+      {/* {account && <Header />} */}
     </main>
   );
 }
