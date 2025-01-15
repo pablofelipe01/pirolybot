@@ -664,7 +664,7 @@ useEffect(() => {
 
           {/* Badges */}
           <div className="flex flex-wrap gap-2 mt-2 px-1">
-            <TooltipProvider>
+            {/* <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
@@ -679,9 +679,9 @@ useEffect(() => {
                   <p>Puedo analizar y comparar imágenes</p>
                 </TooltipContent>
               </Tooltip>
-            </TooltipProvider>
+            </TooltipProvider> */}
 
-            <TooltipProvider>
+            {/* <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
@@ -696,9 +696,9 @@ useEffect(() => {
                   <p>Puedo analizar contenido textual</p>
                 </TooltipContent>
               </Tooltip>
-            </TooltipProvider>
+            </TooltipProvider> */}
 
-            <TooltipProvider>
+            {/* <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
@@ -713,7 +713,7 @@ useEffect(() => {
                   <p>Puedo analizar transcripciones de audio</p>
                 </TooltipContent>
               </Tooltip>
-            </TooltipProvider>
+            </TooltipProvider> */}
           </div>
         </div>
       </CardContent>
